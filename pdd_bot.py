@@ -14,8 +14,8 @@ logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s
 logger = logging.getLogger(__name__)
 
 # Пути и настройки
-DB_PATH = r"C:/Users/danil/Desktop/bot.accdb"
-TOKEN = "6871710717:AAFtb5nZlm0h3PtbUIRUnqvRpvZxp3yymJw"
+DB_PATH = r"Путь для базы данных MS Access"
+TOKEN = "Token tg bota"
 
 # Ограничение на запросы
 user_request_times = {}

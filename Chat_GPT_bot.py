@@ -1,15 +1,18 @@
 import logging
+import time
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
-import openai
-import time
+from openai import OpenAI, APIError, RateLimitError, AuthenticationError
 
 # ВАШИ API-ключи
-TELEGRAM_API_KEY = "telegram api key"
-OPENAI_API_KEY = "openai api key"
+TELEGRAM_API_KEY = "TELEGRAM_API_KEY"
+OPENAI_API_KEY = "OPENAI_API_KEY"
 
-# Настройка API OpenAI
-openai.api_key = OPENAI_API_KEY
+# Настройка OpenAI клиента через прокси
+client = OpenAI(
+    api_key=OPENAI_API_KEY,
+    base_url="https://api.proxyapi.ru/openai/v1"
+)
 
 # Настройка логирования
 logging.basicConfig(
@@ -20,36 +23,41 @@ logger = logging.getLogger(__name__)
 
 # Команда /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("\U0001F44B Привет! Я бот, подключенный к ChatGPT. Напишите мне что-нибудь!")
+    await update.message.reply_text("\U0001F44B Привет! Я бот, подключенный к ChatGPT через прокси. Напиши что-нибудь!")
 
 # Обработчик текстовых сообщений
-async def chatgpt(update, context):
+async def chatgpt(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_message = update.message.text
     try:
-        # Ограничение запросов
-        time.sleep(20)  # Пауза 20 секунд перед запросом
-        response = openai.ChatCompletion.create(
+        time.sleep(2)  # Пауза для ограничения частоты
+
+        response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[{"role": "user", "content": user_message}]
         )
-        reply = response['choices'][0]['message']['content']
+        reply = response.choices[0].message.content
         await update.message.reply_text(reply)
-    except openai.error.RateLimitError:
-        await update.message.reply_text("Превышен лимит запросов. Попробуйте позже.")
 
-# Основная функция для запуска бота
+    except RateLimitError:
+        await update.message.reply_text("🚫 Превышен лимит запросов. Попробуйте позже.")
+    except AuthenticationError:
+        await update.message.reply_text("❌ Ошибка авторизации. Проверьте API-ключ.")
+    except APIError as e:
+        if "insufficient_quota" in str(e):
+            await update.message.reply_text("❗ Недостаточно квоты в OpenAI. Пополните баланс.")
+        else:
+            await update.message.reply_text(f"⚠️ Произошла ошибка API: {e}")
+    except Exception as e:
+        logger.error(f"Unexpected error: {e}")
+        await update.message.reply_text("⚠️ Произошла непредвиденная ошибка. Попробуйте позже.")
+
+# Основная функция запуска Telegram-бота
 def main():
-    # Создание приложения Telegram
     application = ApplicationBuilder().token(TELEGRAM_API_KEY).build()
-
-    # Обработчики команд
     application.add_handler(CommandHandler("start", start))
-
-    # Обработчик текстовых сообщений
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, chatgpt))
 
-    # Запуск бота
-    logger.info("Запуск бота...")
+    logger.info("Бот запущен.")
     application.run_polling()
 
 if __name__ == "__main__":
